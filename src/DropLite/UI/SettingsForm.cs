@@ -291,7 +291,7 @@ internal sealed class SettingsForm : Form
                 {
                     (i + 1).ToString(),
                     d.Name,
-                    ActionLabel(d.Action),
+                    DropActionText.Label(d.Action),
                     string.IsNullOrWhiteSpace(d.Pattern) ? "*" : d.Pattern,
                     string.IsNullOrWhiteSpace(d.TargetPath) ? "—" : d.TargetPath,
                 });
@@ -344,19 +344,6 @@ internal sealed class SettingsForm : Form
             _destList.Items[target].Focused = true;
         }
     }
-
-    private static string ActionLabel(DropAction action) => action switch
-    {
-        DropAction.Move => "移动",
-        DropAction.Copy => "复制",
-        DropAction.Delete => "回收",
-        DropAction.Compress => "压缩",
-        DropAction.Extract => "解压",
-        DropAction.Rename => "重命名",
-        DropAction.Open => "打开",
-        DropAction.Ignore => "忽略",
-        _ => action.ToString(),
-    };
 
     private static Color ColorFromHsv(float hue, float saturation, float value)
     {

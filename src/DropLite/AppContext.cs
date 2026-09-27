@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -171,6 +172,11 @@ internal sealed class AppContext : ApplicationContext
             ? $"DropLite — {profileName}（处理完成，有错误）"
             : $"DropLite — {profileName}";
         string text = result.Summary();
+        string targets = result.TargetSummary();
+        if (targets.Length > 0)
+        {
+            text += Environment.NewLine + "→ " + targets;
+        }
         if (result.Errors.Count > 0)
         {
             text += Environment.NewLine + string.Join(Environment.NewLine, result.Errors.GetRange(0, Math.Min(3, result.Errors.Count)));
@@ -218,6 +224,9 @@ internal sealed class AppContext : ApplicationContext
         }
         menu.Items.Add(profilesItem);
 
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("重置图标位置", null, (_, _) => ResetIconPositions());
+
         var pause = new ToolStripMenuItem("暂停处理") { Checked = _paused };
         pause.Click += (_, _) => { Paused = !Paused; pause.Checked = Paused; };
         menu.Items.Add(pause);
@@ -233,7 +242,35 @@ internal sealed class AppContext : ApplicationContext
         menu.Items.Add(autostart);
 
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("打开日志文件夹", null, (_, _) => OpenLogFolder());
         menu.Items.Add("退出", null, (_, _) => ExitApp());
+    }
+
+    private void ResetIconPositions()
+    {
+        var area = Screen.PrimaryScreen!.WorkingArea;
+        int size = Math.Clamp(Config.IconSize, 32, 160);
+        for (int i = 0; i < Config.Profiles.Count; i++)
+        {
+            Config.Profiles[i].X = area.Right - size - 40 - i * (size + 12);
+            Config.Profiles[i].Y = area.Top + 80;
+        }
+        SaveConfig();
+        SpawnProfileWindows();
+        Logger.Info("icon positions reset");
+    }
+
+    private void OpenLogFolder()
+    {
+        try
+        {
+            Logger.Info("log folder opened from tray");
+            Process.Start(new ProcessStartInfo(Logger.LogDirectory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            NotifyError("无法打开日志文件夹：" + ex.Message);
+        }
     }
 
     private void ExitApp()

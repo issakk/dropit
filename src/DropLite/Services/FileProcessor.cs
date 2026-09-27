@@ -26,6 +26,31 @@ internal sealed class ProcessResult
 
     public readonly List<string> Errors = new();
 
+    /// <summary>本批次涉及的目标目录（用于气泡通知与日志）。</summary>
+    public readonly List<string> Targets = new();
+
+    /// <summary>目标位置的人读摘要：最多列两处，多则折叠。</summary>
+    public string TargetSummary()
+    {
+        var distinct = new List<string>();
+        foreach (string target in Targets)
+        {
+            if (!distinct.Contains(target))
+            {
+                distinct.Add(target);
+            }
+        }
+        if (distinct.Count == 0)
+        {
+            return string.Empty;
+        }
+        if (distinct.Count <= 2)
+        {
+            return string.Join("、", distinct);
+        }
+        return $"{distinct[0]}、{distinct[1]} 等 {distinct.Count} 处";
+    }
+
     public string Summary()
     {
         var parts = new List<string>();
@@ -205,15 +230,23 @@ internal static class FileProcessor
                         switch (dest.Action)
                         {
                             case DropAction.Move:
-                                MoveOne(dest, item);
-                                lock (result) result.Moved++;
-                                log?.Invoke($"moved: {item}");
+                                string movedTo = MoveOne(dest, item);
+                                lock (result)
+                                {
+                                    result.Moved++;
+                                    if (!result.Targets.Contains(movedTo)) result.Targets.Add(movedTo);
+                                }
+                                log?.Invoke($"moved: {item} -> {movedTo}");
                                 break;
 
                             case DropAction.Copy:
-                                CopyOne(dest, item);
-                                lock (result) result.Copied++;
-                                log?.Invoke($"copied: {item}");
+                                string copiedTo = CopyOne(dest, item);
+                                lock (result)
+                                {
+                                    result.Copied++;
+                                    if (!result.Targets.Contains(copiedTo)) result.Targets.Add(copiedTo);
+                                }
+                                log?.Invoke($"copied: {item} -> {copiedTo}");
                                 break;
 
                             case DropAction.Rename:
@@ -260,7 +293,7 @@ internal static class FileProcessor
 
     // ---------------------------------------------------------------- actions
 
-    private static void MoveOne(Destination dest, string src)
+    private static string MoveOne(Destination dest, string src)
     {
         string targetDir = RequiredTarget(dest);
         Directory.CreateDirectory(targetDir);
@@ -274,9 +307,10 @@ internal static class FileProcessor
         {
             File.Move(src, dst, overwrite: false);
         }
+        return targetDir;
     }
 
-    private static void CopyOne(Destination dest, string src)
+    private static string CopyOne(Destination dest, string src)
     {
         string targetDir = RequiredTarget(dest);
         Directory.CreateDirectory(targetDir);
@@ -290,6 +324,7 @@ internal static class FileProcessor
         {
             File.Copy(src, dst, overwrite: true);
         }
+        return targetDir;
     }
 
     private static void RenameOne(Destination dest, string src, int index)
@@ -380,7 +415,11 @@ internal static class FileProcessor
             }
         }
 
-        lock (result) result.Extracted += extracted;
+        lock (result)
+        {
+            result.Extracted += extracted;
+            if (!result.Targets.Contains(baseDir)) result.Targets.Add(baseDir);
+        }
     }
 
     private static void CompressItems(Destination dest, List<string> items, ProcessResult result, Action<string>? log)
@@ -404,6 +443,10 @@ internal static class FileProcessor
         string zipPath = Path.Combine(targetDir, zipName);
 
         // Existing archive is appended to, so repeated drops keep collecting into one ZIP.
+        lock (result)
+        {
+            if (!result.Targets.Contains(targetDir)) result.Targets.Add(targetDir);
+        }
         using var stream = new FileStream(zipPath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Update);
 

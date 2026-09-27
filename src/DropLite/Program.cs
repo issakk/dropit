@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Windows.Forms;
+using DropLite.Services;
 
 namespace DropLite;
 
@@ -23,6 +24,23 @@ internal static class Program
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+
+        // 全局异常兜底：记录到日志，UI 线程异常不结束程序。
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) =>
+        {
+            Logger.Error("UI thread exception", e.Exception);
+            MessageBox.Show(
+                "发生了一个内部错误，程序将继续运行。\n详情请查看日志文件夹（托盘菜单 → 打开日志文件夹）。",
+                "DropLite",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Logger.Error("unhandled exception", e.ExceptionObject as Exception);
+        };
+
         Application.Run(new AppContext());
     }
 }

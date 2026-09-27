@@ -76,6 +76,7 @@ internal sealed class FloatingIconForm : Form
     private readonly AppContext _app;
     private readonly Profile _profile;
     private readonly System.Windows.Forms.Timer _spinTimer;
+    private readonly ToolTip _tooltip = new();
 
     private bool _hovered;
     private bool _busy;
@@ -108,7 +109,7 @@ internal sealed class FloatingIconForm : Form
         };
 
         DragEnter += OnDragEnter;
-        DragLeave += (_, _) => SetHovered(false);
+        DragLeave += (_, _) => { SetHovered(false); HideDropPreview(); };
         DragDrop += OnDragDrop;
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
@@ -142,7 +143,23 @@ internal sealed class FloatingIconForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        ClampToWorkArea();
         ApplyLayeredBitmap();
+    }
+
+    /// <summary>位置越界保护：显示器被拔掉或分辨率变化后，把图标拉回可见工作区。</summary>
+    private void ClampToWorkArea()
+    {
+        var area = Screen.FromPoint(Location).WorkingArea;
+        int x = Math.Clamp(Left, area.Left, Math.Max(area.Left, area.Right - Width));
+        int y = Math.Clamp(Top, area.Top, Math.Max(area.Top, area.Bottom - Height));
+        if (x != Left || y != Top)
+        {
+            Location = new Point(x, y);
+            _profile.X = x;
+            _profile.Y = y;
+            Logger.Info($"icon '{_profile.Name}' clamped to visible area: {x},{y}");
+        }
     }
 
     protected override void Dispose(bool disposing)
@@ -150,6 +167,7 @@ internal sealed class FloatingIconForm : Form
         if (disposing)
         {
             _spinTimer.Dispose();
+            _tooltip.Dispose();
         }
         base.Dispose(disposing);
     }
@@ -230,6 +248,7 @@ internal sealed class FloatingIconForm : Form
 
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
+        HideDropPreview();
         if (_app.Paused || e.Data?.GetDataPresent(DataFormats.FileDrop) != true)
         {
             e.Effect = DragDropEffects.None;
@@ -237,11 +256,16 @@ internal sealed class FloatingIconForm : Form
         }
         e.Effect = DragDropEffects.Copy;
         SetHovered(true);
+        if (e.Data?.GetData(DataFormats.FileDrop) is string[] paths && paths.Length > 0)
+        {
+            UpdateDropPreview(paths);
+        }
     }
 
     private void OnDragDrop(object? sender, DragEventArgs e)
     {
         SetHovered(false);
+        HideDropPreview();
         if (_app.Paused || e.Data?.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
         {
             return;
@@ -249,17 +273,56 @@ internal sealed class FloatingIconForm : Form
         _ = ProcessDropAsync(paths);
     }
 
+    /// <summary>拖入悬停预览：按第一个文件匹配规则，用 tooltip 提示将执行的动作。</summary>
+    private void UpdateDropPreview(string[] paths)
+    {
+        try
+        {
+            Destination? dest = FileProcessor.MatchDestination(_profile, paths[0]);
+            string preview;
+            if (dest is null)
+            {
+                preview = "没有匹配的规则，文件将被忽略";
+            }
+            else
+            {
+                string target = dest.TargetPath.Trim();
+                bool hasTarget = target.Length > 0
+                                 && dest.Action is DropAction.Move or DropAction.Copy
+                                     or DropAction.Compress or DropAction.Extract or DropAction.Rename;
+                preview = $"将执行「{dest.Name}」：{DropActionText.Label(dest.Action)}"
+                          + (hasTarget ? $" → {Environment.ExpandEnvironmentVariables(target)}" : string.Empty);
+            }
+            if (paths.Length > 1)
+            {
+                preview = $"{paths.Length} 项\n" + preview;
+            }
+            _tooltip.SetToolTip(this, preview);
+            _tooltip.Active = true;
+        }
+        catch
+        {
+            // 预览失败不影响拖放本身。
+        }
+    }
+
+    private void HideDropPreview() => _tooltip.Active = false;
+
     private async Task ProcessDropAsync(string[] paths)
     {
         SetBusy(true);
         try
         {
             Profile snapshot = ConfigStore.Clone(_profile);
-            ProcessResult result = await Task.Run(() => FileProcessor.ProcessAsync(snapshot, paths));
+            Logger.Info($"drop on '{snapshot.Name}': {paths.Length} item(s)");
+            ProcessResult result = await Task.Run(
+                () => FileProcessor.ProcessAsync(snapshot, paths, message => Logger.Info(message)));
+            Logger.Info($"drop on '{snapshot.Name}' finished: {result.Summary()}");
             _app.NotifyResult(snapshot.Name, result);
         }
         catch (Exception ex)
         {
+            Logger.Error("drop processing failed", ex);
             _app.NotifyError(ex.Message);
         }
         finally
