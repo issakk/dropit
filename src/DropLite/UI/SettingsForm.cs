@@ -21,19 +21,19 @@ internal sealed class SettingsForm : Form
         MultiSelect = false,
         HideSelection = false,
     };
-    private readonly Button _btnAddProfile = new() { Text = "Add" };
-    private readonly Button _btnRenameProfile = new() { Text = "Rename" };
-    private readonly Button _btnDeleteProfile = new() { Text = "Delete" };
-    private readonly Button _btnAddDest = new() { Text = "Add rule" };
-    private readonly Button _btnEditDest = new() { Text = "Edit" };
-    private readonly Button _btnDeleteDest = new() { Text = "Delete" };
-    private readonly Button _btnUpDest = new() { Text = "▲ Up" };
-    private readonly Button _btnDownDest = new() { Text = "▼ Down" };
-    private readonly CheckBox _chkAutostart = new() { Text = "Start with Windows", AutoSize = true };
-    private readonly CheckBox _chkNotify = new() { Text = "Show notification balloons", AutoSize = true };
-    private readonly NumericUpDown _numIconSize = new() { Minimum = 32, Maximum = 128, Width = 60 };
-    private readonly Button _btnOk = new() { Text = "Save & apply" };
-    private readonly Button _btnCancel = new() { Text = "Cancel" };
+    private readonly Button _btnAddProfile = new() { Text = "添加" };
+    private readonly Button _btnRenameProfile = new() { Text = "重命名" };
+    private readonly Button _btnDeleteProfile = new() { Text = "删除" };
+    private readonly Button _btnAddDest = new() { Text = "添加规则" };
+    private readonly Button _btnEditDest = new() { Text = "编辑" };
+    private readonly Button _btnDeleteDest = new() { Text = "删除" };
+    private readonly Button _btnUpDest = new() { Text = "▲ 上移" };
+    private readonly Button _btnDownDest = new() { Text = "▼ 下移" };
+    private readonly CheckBox _chkAutostart = new() { Text = "开机自启", AutoSize = true };
+    private readonly CheckBox _chkNotify = new() { Text = "处理完成后显示通知气泡", AutoSize = true };
+    private readonly NumericUpDown _numIconSize = new() { Minimum = 32, Maximum = 128, Width = 64 };
+    private readonly Button _btnOk = new() { Text = "保存并应用" };
+    private readonly Button _btnCancel = new() { Text = "取消" };
 
     public SettingsForm(AppContext app, string? focusProfileId = null)
     {
@@ -42,50 +42,55 @@ internal sealed class SettingsForm : Form
         _selectedProfile = _edit.Profiles.FirstOrDefault(p => p.Id == focusProfileId)
                            ?? _edit.Profiles.FirstOrDefault();
 
-        Text = "DropLite — Settings";
-        Font = new Font("Segoe UI", 9f);
+        Text = "DropLite — 设置";
+        Font = new Font("Microsoft YaHei UI", 9f);
+        AutoScaleDimensions = new SizeF(96f, 96f);
+        AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(740, 540);
+        ClientSize = new Size(780, 560);
         ShowInTaskbar = false;
 
-        _destList.Columns.Add("#", 28);
-        _destList.Columns.Add("Name", 120);
-        _destList.Columns.Add("Action", 100);
-        _destList.Columns.Add("Mask", 150);
-        _destList.Columns.Add("Target", 240);
+        // 档案选择行
+        var lblProfile = new Label { Text = "档案:", AutoSize = true, Location = new Point(14, 18) };
+        _profileCombo.Location = new Point(74, 13);
+        _profileCombo.Width = 200;
+        _btnAddProfile.SetBounds(304, 11, 72, 30);
+        _btnRenameProfile.SetBounds(380, 11, 84, 30);
+        _btnDeleteProfile.SetBounds(468, 11, 72, 30);
+
+        // 规则组
+        var grpDest = new GroupBox { Text = "目标规则（自上而下，第一条命中生效）", Location = new Point(12, 50), Size = new Size(756, 348) };
+        _destList.SetBounds(12, 28, 612, 306);
+        _destList.Columns.Add("序号", 36);
+        _destList.Columns.Add("名称", 112);
+        _destList.Columns.Add("动作", 78);
+        _destList.Columns.Add("掩码", 158);
+        _destList.Columns.Add("目标", 198);
         _destList.DoubleClick += (_, _) => EditSelectedDest();
 
-        var lblProfile = new Label { Text = "Profile:", AutoSize = true, Location = new Point(12, 16) };
-        _profileCombo.Location = new Point(60, 12);
-        _profileCombo.Width = 220;
-        _btnAddProfile.SetBounds(300, 10, 70, 26);
-        _btnRenameProfile.SetBounds(374, 10, 70, 26);
-        _btnDeleteProfile.SetBounds(448, 10, 70, 26);
-
-        var grpDest = new GroupBox { Text = "Destinations (rules match top-down)", Location = new Point(12, 44), Size = new Size(716, 336) };
-        _destList.SetBounds(10, 22, 566, 300);
-        _btnAddDest.SetBounds(588, 24, 116, 28);
-        _btnEditDest.SetBounds(588, 56, 116, 28);
-        _btnDeleteDest.SetBounds(588, 88, 116, 28);
-        _btnUpDest.SetBounds(588, 140, 116, 28);
-        _btnDownDest.SetBounds(588, 172, 116, 28);
+        _btnAddDest.SetBounds(634, 30, 110, 32);
+        _btnEditDest.SetBounds(634, 66, 110, 32);
+        _btnDeleteDest.SetBounds(634, 102, 110, 32);
+        _btnUpDest.SetBounds(634, 158, 110, 32);
+        _btnDownDest.SetBounds(634, 194, 110, 32);
         grpDest.Controls.AddRange(new Control[]
         {
             _destList, _btnAddDest, _btnEditDest, _btnDeleteDest, _btnUpDest, _btnDownDest,
         });
 
-        var grpGeneral = new GroupBox { Text = "General", Location = new Point(12, 388), Size = new Size(716, 92) };
-        _chkAutostart.SetBounds(14, 26, 200, 22);
-        _chkNotify.SetBounds(14, 52, 240, 22);
-        var lblIconSize = new Label { Text = "Icon size:", AutoSize = true, Location = new Point(300, 28) };
-        _numIconSize.Location = new Point(360, 24);
+        // 通用组
+        var grpGeneral = new GroupBox { Text = "通用", Location = new Point(12, 406), Size = new Size(756, 96) };
+        _chkAutostart.SetBounds(16, 30, 160, 24);
+        _chkNotify.SetBounds(16, 60, 230, 24);
+        var lblIconSize = new Label { Text = "图标大小:", AutoSize = true, Location = new Point(320, 33) };
+        _numIconSize.Location = new Point(400, 29);
         grpGeneral.Controls.AddRange(new Control[] { _chkAutostart, _chkNotify, lblIconSize, _numIconSize });
 
-        _btnOk.SetBounds(500, 494, 110, 30);
-        _btnCancel.SetBounds(618, 494, 110, 30);
+        _btnOk.SetBounds(534, 512, 116, 34);
+        _btnCancel.SetBounds(654, 512, 114, 34);
 
         Controls.AddRange(new Control[]
         {
@@ -104,7 +109,7 @@ internal sealed class SettingsForm : Form
         };
         _btnAddProfile.Click += (_, _) =>
         {
-            string? name = Dialogs.PromptText(this, "New profile", "Profile name:", "New profile");
+            string? name = Dialogs.PromptText(this, "新建档案", "档案名称：", "新建档案");
             if (string.IsNullOrWhiteSpace(name))
             {
                 return;
@@ -127,7 +132,7 @@ internal sealed class SettingsForm : Form
             {
                 return;
             }
-            string? name = Dialogs.PromptText(this, "Rename profile", "Profile name:", _selectedProfile.Name);
+            string? name = Dialogs.PromptText(this, "重命名档案", "档案名称：", _selectedProfile.Name);
             if (string.IsNullOrWhiteSpace(name))
             {
                 return;
@@ -143,7 +148,7 @@ internal sealed class SettingsForm : Form
             }
             if (MessageBox.Show(
                     this,
-                    $"Delete profile '{_selectedProfile.Name}' and all of its rules?",
+                    $"确定删除档案“{_selectedProfile.Name}”及其全部规则吗？",
                     "DropLite",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question) != DialogResult.Yes)
@@ -303,14 +308,14 @@ internal sealed class SettingsForm : Form
 
     private static string ActionLabel(DropAction action) => action switch
     {
-        DropAction.Move => "Move",
-        DropAction.Copy => "Copy",
-        DropAction.Delete => "Recycle",
-        DropAction.Compress => "Compress",
-        DropAction.Extract => "Extract",
-        DropAction.Rename => "Rename",
-        DropAction.Open => "Open",
-        DropAction.Ignore => "Ignore",
+        DropAction.Move => "移动",
+        DropAction.Copy => "复制",
+        DropAction.Delete => "回收",
+        DropAction.Compress => "压缩",
+        DropAction.Extract => "解压",
+        DropAction.Rename => "重命名",
+        DropAction.Open => "打开",
+        DropAction.Ignore => "忽略",
         _ => action.ToString(),
     };
 

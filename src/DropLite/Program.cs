@@ -13,7 +13,7 @@ internal static class Program
         if (!createdNew)
         {
             MessageBox.Show(
-                "DropLite is already running. Look for the floating icon on your desktop.",
+                "DropLite 已经在运行中，请查看桌面上的悬浮图标。",
                 "DropLite",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);

@@ -45,7 +45,7 @@ internal sealed class AppContext : ApplicationContext
         _tray = new NotifyIcon
         {
             Icon = IconFactory.CreateIcon(TrayColor),
-            Text = "DropLite — drop files onto the floating icon",
+            Text = "DropLite — 把文件拖到悬浮图标上",
             Visible = true,
         };
         _tray.ContextMenuStrip = BuildTrayMenu();
@@ -75,14 +75,14 @@ internal sealed class AppContext : ApplicationContext
             {
                 new Destination
                 {
-                    Name = "Collect images",
+                    Name = "收集图片",
                     Action = DropAction.Move,
                     Pattern = "*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.webp",
                     TargetPath = Path.Combine(pictures, "Collected"),
                 },
                 new Destination
                 {
-                    Name = "Collect documents",
+                    Name = "收集文档",
                     Action = DropAction.Move,
                     Pattern = "*.pdf;*.docx;*.doc;*.xlsx;*.pptx;*.txt",
                     TargetPath = Path.Combine(documents, "Collected"),
@@ -168,7 +168,7 @@ internal sealed class AppContext : ApplicationContext
         }
 
         string title = result.Failed > 0
-            ? $"DropLite — {profileName} (finished with errors)"
+            ? $"DropLite — {profileName}（处理完成，有错误）"
             : $"DropLite — {profileName}";
         string text = result.Summary();
         if (result.Errors.Count > 0)
@@ -198,9 +198,9 @@ internal sealed class AppContext : ApplicationContext
     {
         menu.Items.Clear();
 
-        menu.Items.Add("Open settings…", null, (_, _) => ShowSettings());
+        menu.Items.Add("打开设置…", null, (_, _) => ShowSettings());
 
-        var profilesItem = new ToolStripMenuItem("Profiles");
+        var profilesItem = new ToolStripMenuItem("档案");
         foreach (Profile p in Config.Profiles)
         {
             var item = new ToolStripMenuItem(p.Name) { Checked = p.ShowIcon };
@@ -214,15 +214,15 @@ internal sealed class AppContext : ApplicationContext
         }
         if (Config.Profiles.Count == 0)
         {
-            profilesItem.DropDownItems.Add(new ToolStripMenuItem("(none)") { Enabled = false });
+            profilesItem.DropDownItems.Add(new ToolStripMenuItem("（无）") { Enabled = false });
         }
         menu.Items.Add(profilesItem);
 
-        var pause = new ToolStripMenuItem("Pause processing") { Checked = _paused };
+        var pause = new ToolStripMenuItem("暂停处理") { Checked = _paused };
         pause.Click += (_, _) => { Paused = !Paused; pause.Checked = Paused; };
         menu.Items.Add(pause);
 
-        var autostart = new ToolStripMenuItem("Start with Windows") { Checked = AutoStart.IsEnabled() };
+        var autostart = new ToolStripMenuItem("开机自启") { Checked = AutoStart.IsEnabled() };
         autostart.Click += (_, _) =>
         {
             bool enable = !AutoStart.IsEnabled();
@@ -233,7 +233,7 @@ internal sealed class AppContext : ApplicationContext
         menu.Items.Add(autostart);
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => ExitApp());
+        menu.Items.Add("退出", null, (_, _) => ExitApp());
     }
 
     private void ExitApp()

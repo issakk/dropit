@@ -5,46 +5,50 @@ using DropLite.Models;
 
 namespace DropLite.UI;
 
-/// <summary>Edits a single destination (rule) of a profile.</summary>
+/// <summary>编辑档案中的单条目标规则。</summary>
 internal sealed class DestinationEditorForm : Form
 {
+    // 顺序必须与 DropAction 枚举一致：Move, Copy, Delete, Compress, Extract, Rename, Open, Ignore
     private static readonly string[] ActionNames =
     {
-        "Move",
-        "Copy",
-        "Recycle (delete)",
-        "Compress to ZIP",
-        "Extract ZIP",
-        "Rename",
-        "Open",
-        "Ignore",
+        "移动",
+        "复制",
+        "移入回收站",
+        "压缩为 ZIP",
+        "解压 ZIP",
+        "重命名",
+        "打开",
+        "忽略",
     };
 
-    private static readonly string[] ConflictNames = { "Auto-rename", "Overwrite", "Skip" };
+    // 顺序必须与 ConflictPolicy 枚举一致：AutoRename, Overwrite, Skip
+    private static readonly string[] ConflictNames = { "自动重命名", "覆盖", "跳过" };
 
-    private readonly TextBox _name = new() { Width = 360 };
-    private readonly ComboBox _action = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
-    private readonly TextBox _pattern = new() { Width = 360 };
-    private readonly TextBox _target = new() { Width = 296 };
-    private readonly TextBox _zip = new() { Width = 360 };
-    private readonly ComboBox _conflict = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
+    private readonly TextBox _name = new() { Width = 370 };
+    private readonly ComboBox _action = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 370 };
+    private readonly TextBox _pattern = new() { Width = 370 };
+    private readonly TextBox _target = new() { Width = 302 };
+    private readonly TextBox _zip = new() { Width = 370 };
+    private readonly ComboBox _conflict = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 370 };
     private readonly Label _hint = new()
     {
         AutoSize = false,
-        Size = new Size(488, 46),
+        Size = new Size(510, 56),
         ForeColor = SystemColors.GrayText,
     };
 
     public DestinationEditorForm(Destination dest, bool isNew)
     {
-        Text = isNew ? "DropLite — New rule" : "DropLite — Edit rule";
-        Font = new Font("Segoe UI", 9f);
+        Text = isNew ? "DropLite — 新建规则" : "DropLite — 编辑规则";
+        Font = new Font("Microsoft YaHei UI", 9f);
+        AutoScaleDimensions = new SizeF(96f, 96f);
+        AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(520, 430);
+        ClientSize = new Size(540, 446);
 
         _action.Items.AddRange(ActionNames);
         _conflict.Items.AddRange(ConflictNames);
@@ -55,15 +59,15 @@ internal sealed class DestinationEditorForm : Form
         _target.Text = dest.TargetPath;
         _zip.Text = dest.ZipName;
 
-        var lblName = new Label { Text = "Name:", AutoSize = true, Location = new Point(14, 17) };
-        _name.Location = new Point(130, 13);
-        var lblAction = new Label { Text = "Action:", AutoSize = true, Location = new Point(14, 52) };
-        _action.Location = new Point(130, 48);
-        var lblPattern = new Label { Text = "File mask:", AutoSize = true, Location = new Point(14, 87) };
-        _pattern.Location = new Point(130, 83);
-        var lblTarget = new Label { Text = "Target folder:", AutoSize = true, Location = new Point(14, 122) };
-        _target.Location = new Point(130, 118);
-        var browse = new Button { Text = "Browse…", Location = new Point(432, 116), Width = 74 };
+        var lblName = new Label { Text = "名称:", AutoSize = true, Location = new Point(16, 17) };
+        _name.Location = new Point(118, 13);
+        var lblAction = new Label { Text = "动作:", AutoSize = true, Location = new Point(16, 52) };
+        _action.Location = new Point(118, 48);
+        var lblPattern = new Label { Text = "文件掩码:", AutoSize = true, Location = new Point(16, 87) };
+        _pattern.Location = new Point(118, 83);
+        var lblTarget = new Label { Text = "目标文件夹:", AutoSize = true, Location = new Point(16, 122) };
+        _target.Location = new Point(118, 118);
+        var browse = new Button { Text = "浏览…", Location = new Point(428, 116), Width = 78 };
         browse.Click += (_, _) =>
         {
             using var fb = new FolderBrowserDialog { ShowNewFolderButton = true };
@@ -72,20 +76,20 @@ internal sealed class DestinationEditorForm : Form
                 _target.Text = fb.SelectedPath;
             }
         };
-        var lblZip = new Label { Text = "ZIP file name:", AutoSize = true, Location = new Point(14, 157) };
-        _zip.Location = new Point(130, 153);
-        var lblConflict = new Label { Text = "If target exists:", AutoSize = true, Location = new Point(14, 192) };
-        _conflict.Location = new Point(130, 188);
-        _hint.Location = new Point(14, 232);
+        var lblZip = new Label { Text = "ZIP 文件名:", AutoSize = true, Location = new Point(16, 157) };
+        _zip.Location = new Point(118, 153);
+        var lblConflict = new Label { Text = "目标已存在时:", AutoSize = true, Location = new Point(16, 192) };
+        _conflict.Location = new Point(118, 188);
+        _hint.Location = new Point(16, 236);
 
-        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Width = 90, Location = new Point(304, 386) };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90, Location = new Point(404, 386) };
+        var ok = new Button { Text = "确定", DialogResult = DialogResult.OK, Width = 90, Location = new Point(320, 398) };
+        var cancel = new Button { Text = "取消", DialogResult = DialogResult.Cancel, Width = 90, Location = new Point(420, 398) };
         ok.Click += (_, _) =>
         {
             dest.Name = _name.Text.Trim();
             if (dest.Name.Length == 0)
             {
-                dest.Name = "Rule";
+                dest.Name = "规则";
             }
             dest.Action = (DropAction)Math.Max(0, _action.SelectedIndex);
             dest.Pattern = _pattern.Text.Trim();
@@ -124,14 +128,14 @@ internal sealed class DestinationEditorForm : Form
 
     private static string HintFor(DropAction action) => action switch
     {
-        DropAction.Move => "Move matching items into the target folder.",
-        DropAction.Copy => "Copy matching items into the target folder; originals are kept.",
-        DropAction.Delete => "Send matching items to the Recycle Bin.",
-        DropAction.Compress => "Append matching items to a ZIP inside the target folder. ZIP name variables: {date:yyyy-MM-dd}, {n}.",
-        DropAction.Extract => "Extract matching ZIP archives into the target folder.",
-        DropAction.Rename => "Rename using the target field as a template. Variables: {name}, {ext}, {date:yyyyMMdd}, {n}.",
-        DropAction.Open => "Open matching items with their default program.",
-        DropAction.Ignore => "Do nothing — useful as a final catch-all rule.",
+        DropAction.Move => "将匹配的文件/文件夹移动到目标文件夹。",
+        DropAction.Copy => "将匹配项复制到目标文件夹，原件保留。",
+        DropAction.Delete => "将匹配项移入回收站，可随时还原。",
+        DropAction.Compress => "将匹配项追加进目标文件夹中的 ZIP 压缩包。ZIP 名支持变量 {date:yyyy-MM-dd}、{n}。",
+        DropAction.Extract => "将匹配的 ZIP 压缩包解压到目标文件夹。",
+        DropAction.Rename => "按模板重命名，此处的“目标文件夹”字段作为模板使用。变量：{name}、{ext}、{date:yyyyMMdd}、{n}。",
+        DropAction.Open => "用系统默认程序打开匹配项。",
+        DropAction.Ignore => "不做任何处理，适合作为最后的兜底规则。",
         _ => string.Empty,
     };
 }

@@ -64,15 +64,15 @@ internal sealed class FloatingIconForm : Form
         UpdateRegion();
 
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Settings…", null, (_, _) => _app.ShowSettings(_profile));
-        menu.Items.Add("Hide this icon", null, (_, _) =>
+        menu.Items.Add("设置…", null, (_, _) => _app.ShowSettings(_profile));
+        menu.Items.Add("隐藏此图标", null, (_, _) =>
         {
             _profile.ShowIcon = false;
             _app.SaveConfig();
             _app.SpawnProfileWindows();
         });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit DropLite", null, (_, _) => Application.Exit());
+        menu.Items.Add("退出 DropLite", null, (_, _) => Application.Exit());
         ContextMenuStrip = menu;
     }
 

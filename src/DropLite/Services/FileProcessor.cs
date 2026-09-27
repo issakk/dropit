@@ -29,17 +29,17 @@ internal sealed class ProcessResult
     public string Summary()
     {
         var parts = new List<string>();
-        if (Moved > 0) parts.Add($"moved {Moved}");
-        if (Copied > 0) parts.Add($"copied {Copied}");
-        if (Compressed > 0) parts.Add($"compressed {Compressed}");
-        if (Extracted > 0) parts.Add($"extracted {Extracted}");
-        if (Renamed > 0) parts.Add($"renamed {Renamed}");
-        if (Deleted > 0) parts.Add($"recycled {Deleted}");
-        if (Opened > 0) parts.Add($"opened {Opened}");
-        if (Skipped > 0) parts.Add($"skipped {Skipped}");
-        if (Ignored > 0) parts.Add($"ignored {Ignored}");
-        if (Failed > 0) parts.Add($"failed {Failed}");
-        return parts.Count == 0 ? "nothing to do" : string.Join(", ", parts);
+        if (Moved > 0) parts.Add($"已移动 {Moved}");
+        if (Copied > 0) parts.Add($"已复制 {Copied}");
+        if (Compressed > 0) parts.Add($"已压缩 {Compressed}");
+        if (Extracted > 0) parts.Add($"已解压 {Extracted}");
+        if (Renamed > 0) parts.Add($"已重命名 {Renamed}");
+        if (Deleted > 0) parts.Add($"已回收 {Deleted}");
+        if (Opened > 0) parts.Add($"已打开 {Opened}");
+        if (Skipped > 0) parts.Add($"跳过 {Skipped}");
+        if (Ignored > 0) parts.Add($"已忽略 {Ignored}");
+        if (Failed > 0) parts.Add($"失败 {Failed}");
+        return parts.Count == 0 ? "没有可处理的文件" : string.Join("，", parts);
     }
 }
 
