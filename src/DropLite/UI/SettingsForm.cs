@@ -87,8 +87,15 @@ internal sealed class SettingsForm : Form
         var grpGeneral = new GroupBox { Text = "通用", Location = new Point(12, 406), Size = new Size(756, 96) };
         _chkAutostart.SetBounds(16, 30, 160, 24);
         _chkNotify.SetBounds(16, 60, 230, 24);
-        var lblIconSize = new Label { Text = "图标大小:", AutoSize = true, Location = new Point(320, 33) };
-        _numIconSize.Location = new Point(400, 29);
+        var lblIconSize = new Label
+        {
+            Text = "图标大小:",
+            AutoSize = false,
+            Size = new Size(110, 26),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Location = new Point(320, 28),
+        };
+        _numIconSize.Location = new Point(440, 29);
         grpGeneral.Controls.AddRange(new Control[] { _chkAutostart, _chkNotify, lblIconSize, _numIconSize });
 
         _btnOk.SetBounds(534, 512, 116, 34);
