@@ -29,6 +29,7 @@ internal sealed class SettingsForm : Form
     private readonly Button _btnDeleteDest = new() { Text = "删除" };
     private readonly Button _btnUpDest = new() { Text = "▲ 上移" };
     private readonly Button _btnDownDest = new() { Text = "▼ 下移" };
+    private readonly Button _btnPresets = new() { Text = "常用分类 ▾" };
     private readonly CheckBox _chkAutostart = new() { Text = "开机自启", AutoSize = true };
     private readonly CheckBox _chkNotify = new() { Text = "处理完成后显示通知气泡", AutoSize = true };
     private readonly NumericUpDown _numIconSize = new() { Minimum = 32, Maximum = 128, Width = 64 };
@@ -76,9 +77,10 @@ internal sealed class SettingsForm : Form
         _btnDeleteDest.SetBounds(634, 102, 110, 32);
         _btnUpDest.SetBounds(634, 158, 110, 32);
         _btnDownDest.SetBounds(634, 194, 110, 32);
+        _btnPresets.SetBounds(634, 250, 110, 32);
         grpDest.Controls.AddRange(new Control[]
         {
-            _destList, _btnAddDest, _btnEditDest, _btnDeleteDest, _btnUpDest, _btnDownDest,
+            _destList, _btnAddDest, _btnEditDest, _btnDeleteDest, _btnUpDest, _btnDownDest, _btnPresets,
         });
 
         // 通用组
@@ -188,6 +190,36 @@ internal sealed class SettingsForm : Form
         };
         _btnUpDest.Click += (_, _) => MoveDest(-1);
         _btnDownDest.Click += (_, _) => MoveDest(1);
+
+        _btnPresets.Click += (_, _) =>
+        {
+            if (_selectedProfile is null)
+            {
+                return;
+            }
+            var menu = new ContextMenuStrip();
+            foreach (PresetCategory preset in PresetCategories.All)
+            {
+                var item = new ToolStripMenuItem(preset.Name);
+                item.Click += (_, _) =>
+                {
+                    if (_selectedProfile is null)
+                    {
+                        return;
+                    }
+                    _selectedProfile.Destinations.Add(new Destination
+                    {
+                        Name = preset.Name,
+                        Action = DropAction.Move,
+                        Pattern = preset.Pattern,
+                        TargetPath = preset.Target,
+                    });
+                    RefreshDestList();
+                };
+                menu.Items.Add(item);
+            }
+            menu.Show(_btnPresets, new Point(0, _btnPresets.Height));
+        };
 
         _btnOk.Click += (_, _) =>
         {
