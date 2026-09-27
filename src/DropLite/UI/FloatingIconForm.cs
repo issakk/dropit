@@ -19,7 +19,7 @@ internal sealed class FloatingIconForm : Form
 
     private readonly AppContext _app;
     private readonly Profile _profile;
-    private readonly Timer _spinTimer;
+    private readonly System.Windows.Forms.Timer _spinTimer;
 
     private bool _hovered;
     private bool _busy;
@@ -45,7 +45,7 @@ internal sealed class FloatingIconForm : Form
         Size = new Size(size, size);
         Location = new Point(profile.X, profile.Y);
 
-        _spinTimer = new Timer { Interval = 33 };
+        _spinTimer = new System.Windows.Forms.Timer { Interval = 33 };
         _spinTimer.Tick += (_, _) =>
         {
             _spin = (_spin + 14f) % 360f;
