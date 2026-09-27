@@ -16,7 +16,7 @@ internal static class Dialogs
             MaximizeBox = false,
             MinimizeBox = false,
             ShowInTaskbar = false,
-            StartPosition = owner is Form f ? FormStartPosition.CenterParent : Form.FormStartPosition.CenterScreen,
+            StartPosition = owner is Form ? FormStartPosition.CenterParent : FormStartPosition.CenterScreen,
             ClientSize = new Size(380, 120),
         };
 

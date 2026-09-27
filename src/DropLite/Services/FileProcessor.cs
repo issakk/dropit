@@ -54,9 +54,6 @@ internal static class FileProcessor
     private static readonly ConcurrentDictionary<string, Regex> RegexCache =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Regex TokenRegex =
-        new(@"\{(name|ext|date:[^}]+|n)\}", RegexOptions.Compiled);
-
     public static async Task<ProcessResult> ProcessAsync(
         Profile profile, IReadOnlyList<string> paths, Action<string>? log = null)
     {
@@ -572,6 +569,9 @@ internal static class FileProcessor
 
 internal static class TemplateResolver
 {
+    private static readonly Regex TokenRegex =
+        new(@"\{(name|ext|date:[^}]+|n)\}", RegexOptions.Compiled);
+
     /// <summary>Expands {name} {ext} {date:format} {n} tokens in user templates.</summary>
     public static string Resolve(string template, string? name = null, string? ext = null, int index = 0)
     {
