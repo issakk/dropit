@@ -23,7 +23,15 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Publish single-file exe
-        run: dotnet publish src/DropLite/DropLite.csproj -c Release -o publish
+        shell: pwsh
+        run: |
+          $dotnetArgs = @('publish', 'src/DropLite/DropLite.csproj', '-c', 'Release', '-o', 'publish')
+          # Tag pushes (v1.2.3) stamp the exe version; branch builds keep the csproj default.
+          if ($env:GITHUB_REF_NAME -like 'v*') {
+            $dotnetArgs += '/p:Version=' + $env:GITHUB_REF_NAME.Substring(1)
+          }
+          & dotnet @dotnetArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
