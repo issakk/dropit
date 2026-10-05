@@ -131,7 +131,7 @@ internal sealed class DestinationEditorForm : Form
         DropAction.Move => "将匹配的文件/文件夹移动到目标文件夹。",
         DropAction.Copy => "将匹配项复制到目标文件夹，原件保留。",
         DropAction.Delete => "将匹配项移入回收站，可随时还原。",
-        DropAction.Compress => "将匹配项追加进目标文件夹中的 ZIP 压缩包。ZIP 名支持变量 {date:yyyy-MM-dd}、{n}。",
+        DropAction.Compress => "将匹配项追加进目标文件夹中的 ZIP 压缩包。ZIP 名支持变量 {date:yyyy-MM-dd}、{n}；“目标已存在时”策略同样适用于压缩包内的同名条目。",
         DropAction.Extract => "将匹配的 ZIP 压缩包解压到目标文件夹。",
         DropAction.Rename => "按模板重命名，此处的“目标文件夹”字段作为模板使用。变量：{name}、{ext}、{date:yyyyMMdd}、{n}。",
         DropAction.Open => "用系统默认程序打开匹配项。",

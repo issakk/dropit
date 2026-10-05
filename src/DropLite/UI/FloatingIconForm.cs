@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -78,6 +79,8 @@ internal sealed class FloatingIconForm : Form
     private readonly System.Windows.Forms.Timer _spinTimer;
     private readonly ToolTip _tooltip = new();
 
+    private string? _previewText;
+    private readonly Stopwatch _previewClock = new();
     private bool _hovered;
     private bool _busy;
     private bool _movingWindow;
@@ -111,6 +114,8 @@ internal sealed class FloatingIconForm : Form
         DragEnter += OnDragEnter;
         DragLeave += (_, _) => { SetHovered(false); HideDropPreview(); };
         DragDrop += OnDragDrop;
+        // 拖放循环里窗口收不到鼠标消息，tooltip 的悬停机制失效，由 DragOver 周期性续显。
+        DragOver += (_, _) => KeepDropPreviewAlive();
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
@@ -126,7 +131,7 @@ internal sealed class FloatingIconForm : Form
             _app.SpawnProfileWindows();
         });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("退出 DropLite", null, (_, _) => Application.Exit());
+        menu.Items.Add("退出 DropLite", null, (_, _) => _app.ExitApp());
         ContextMenuStrip = menu;
     }
 
@@ -249,16 +254,24 @@ internal sealed class FloatingIconForm : Form
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
         HideDropPreview();
-        if (_app.Paused || e.Data?.GetDataPresent(DataFormats.FileDrop) != true)
+        bool hasFiles = e.Data?.GetDataPresent(DataFormats.FileDrop) == true;
+        if (_busy || _app.Paused || !hasFiles)
         {
             e.Effect = DragDropEffects.None;
+            if (_busy && hasFiles)
+            {
+                // 拒绝投放时给出原因，避免用户以为功能失灵。
+                _previewText = "上一批文件还在处理中，请等旋转动画结束后再拖";
+                ShowDropPreview();
+            }
             return;
         }
         e.Effect = DragDropEffects.Copy;
         SetHovered(true);
         if (e.Data?.GetData(DataFormats.FileDrop) is string[] paths && paths.Length > 0)
         {
-            UpdateDropPreview(paths);
+            _previewText = BuildDropPreview(paths);
+            ShowDropPreview();
         }
     }
 
@@ -266,15 +279,44 @@ internal sealed class FloatingIconForm : Form
     {
         SetHovered(false);
         HideDropPreview();
-        if (_app.Paused || e.Data?.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
+        if (_busy || _app.Paused || e.Data?.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
         {
             return;
         }
         _ = ProcessDropAsync(paths);
     }
 
-    /// <summary>拖入悬停预览：按第一个文件匹配规则，用 tooltip 提示将执行的动作。</summary>
-    private void UpdateDropPreview(string[] paths)
+    // 拖放期间窗口收不到鼠标消息，WinForms ToolTip 的悬停机制不会触发；
+    // 改为 DragEnter 时显式 Show，并在 DragOver 里周期性续显。
+    private void ShowDropPreview()
+    {
+        if (_previewText is null || IsDisposed)
+        {
+            return;
+        }
+        _previewClock.Restart();
+        var pos = PointToClient(new Point(Cursor.Position.X + 14, Cursor.Position.Y + 18));
+        _tooltip.Show(_previewText, this, pos, 3000);
+    }
+
+    private void KeepDropPreviewAlive()
+    {
+        if (_previewText is null || !_previewClock.IsRunning || _previewClock.ElapsedMilliseconds < 2500)
+        {
+            return;
+        }
+        ShowDropPreview();
+    }
+
+    private void HideDropPreview()
+    {
+        _previewText = null;
+        _previewClock.Reset();
+        _tooltip.Hide(this);
+    }
+
+    /// <summary>拖入悬停预览：按第一个文件匹配规则，生成将执行的动作说明。</summary>
+    private string? BuildDropPreview(string[] paths)
     {
         try
         {
@@ -287,38 +329,48 @@ internal sealed class FloatingIconForm : Form
             else
             {
                 string target = dest.TargetPath.Trim();
-                bool hasTarget = target.Length > 0
-                                 && dest.Action is DropAction.Move or DropAction.Copy
-                                     or DropAction.Compress or DropAction.Extract or DropAction.Rename;
-                preview = $"将执行「{dest.Name}」：{DropActionText.Label(dest.Action)}"
-                          + (hasTarget ? $" → {Environment.ExpandEnvironmentVariables(target)}" : string.Empty);
+                string suffix;
+                if (dest.Action == DropAction.Rename)
+                {
+                    // Rename 的 TargetPath 是命名模板而非路径。
+                    suffix = target.Length > 0 ? $"（模板 {target}）" : string.Empty;
+                }
+                else if (target.Length > 0 && dest.Action is DropAction.Move or DropAction.Copy
+                         or DropAction.Compress or DropAction.Extract)
+                {
+                    suffix = $" → {Environment.ExpandEnvironmentVariables(target)}";
+                }
+                else
+                {
+                    suffix = string.Empty;
+                }
+                preview = $"将执行「{dest.Name}」：{DropActionText.Label(dest.Action)}" + suffix;
             }
             if (paths.Length > 1)
             {
                 preview = $"{paths.Length} 项\n" + preview;
             }
-            _tooltip.SetToolTip(this, preview);
-            _tooltip.Active = true;
+            return preview;
         }
         catch
         {
             // 预览失败不影响拖放本身。
+            return null;
         }
     }
-
-    private void HideDropPreview() => _tooltip.Active = false;
 
     private async Task ProcessDropAsync(string[] paths)
     {
         SetBusy(true);
+        string profileName = _profile.Name;
         try
         {
-            Profile snapshot = ConfigStore.Clone(_profile);
-            Logger.Info($"drop on '{snapshot.Name}': {paths.Length} item(s)");
+            // ProcessAsync 内部会对 profile 做快照，这里不必重复 Clone。
+            Logger.Info($"drop on '{profileName}': {paths.Length} item(s)");
             ProcessResult result = await Task.Run(
-                () => FileProcessor.ProcessAsync(snapshot, paths, message => Logger.Info(message)));
-            Logger.Info($"drop on '{snapshot.Name}' finished: {result.Summary()}");
-            _app.NotifyResult(snapshot.Name, result);
+                () => FileProcessor.ProcessAsync(_profile, paths, message => Logger.Info(message)));
+            Logger.Info($"drop on '{profileName}' finished: {result.Summary()}");
+            _app.NotifyResult(profileName, result);
         }
         catch (Exception ex)
         {

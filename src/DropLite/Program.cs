@@ -7,6 +7,9 @@ namespace DropLite;
 
 internal static class Program
 {
+    private static string? _lastErrorKey;
+    private static DateTime _lastErrorShown;
+
     [STAThread]
     private static void Main()
     {
@@ -30,6 +33,14 @@ internal static class Program
         Application.ThreadException += (_, e) =>
         {
             Logger.Error("UI thread exception", e.Exception);
+            // 同一错误 10 秒内只弹一次，防止异常风暴连环弹窗（日志仍全量记录）。
+            string key = e.Exception.GetType().FullName + "|" + e.Exception.Message;
+            if (key == _lastErrorKey && DateTime.Now - _lastErrorShown < TimeSpan.FromSeconds(10))
+            {
+                return;
+            }
+            _lastErrorKey = key;
+            _lastErrorShown = DateTime.Now;
             MessageBox.Show(
                 "发生了一个内部错误，程序将继续运行。\n详情请查看日志文件夹（托盘菜单 → 打开日志文件夹）。",
                 "DropLite",

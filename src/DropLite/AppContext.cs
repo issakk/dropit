@@ -273,7 +273,7 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    private void ExitApp()
+    public void ExitApp()
     {
         CloseWindows();
         _tray.Visible = false;

@@ -205,7 +205,7 @@ internal static class FileProcessor
                     string item = items[i];
                     try
                     {
-                        ExtractOne(dest, item, result);
+                        ExtractOne(dest, item, result, log);
                         log?.Invoke($"extracted: {item}");
                     }
                     catch (SkipItemException)
@@ -240,7 +240,7 @@ internal static class FileProcessor
                                 break;
 
                             case DropAction.Copy:
-                                string copiedTo = CopyOne(dest, item);
+                                string copiedTo = CopyOne(dest, item, result, log);
                                 lock (result)
                                 {
                                     result.Copied++;
@@ -301,16 +301,16 @@ internal static class FileProcessor
 
         if (Directory.Exists(src))
         {
-            MoveDirectory(src, dst);
+            MoveDirectory(src, dst, dest.Conflict);
         }
         else
         {
-            File.Move(src, dst, overwrite: false);
+            MoveFileWithRetry(src, dst, dest.Conflict);
         }
         return targetDir;
     }
 
-    private static string CopyOne(Destination dest, string src)
+    private static string CopyOne(Destination dest, string src, ProcessResult result, Action<string>? log)
     {
         string targetDir = RequiredTarget(dest);
         Directory.CreateDirectory(targetDir);
@@ -318,11 +318,11 @@ internal static class FileProcessor
 
         if (Directory.Exists(src))
         {
-            CopyDirectoryCore(src, dst, dest.Conflict);
+            CopyDirectoryCore(src, dst, dest.Conflict, result, log);
         }
         else
         {
-            File.Copy(src, dst, overwrite: true);
+            CopyFileWithRetry(src, dst, dest.Conflict);
         }
         return targetDir;
     }
@@ -345,7 +345,7 @@ internal static class FileProcessor
         }
         else
         {
-            File.Move(src, dst, overwrite: false);
+            MoveFileWithRetry(src, dst, dest.Conflict);
         }
     }
 
@@ -354,7 +354,7 @@ internal static class FileProcessor
         Process.Start(new ProcessStartInfo(item) { UseShellExecute = true });
     }
 
-    private static void ExtractOne(Destination dest, string item, ProcessResult result)
+    private static void ExtractOne(Destination dest, string item, ProcessResult result, Action<string>? log)
     {
         if (!File.Exists(item))
         {
@@ -386,6 +386,7 @@ internal static class FileProcessor
                     && !string.Equals(targetPath, fullBase, StringComparison.OrdinalIgnoreCase))
                 {
                     lock (result) result.Skipped++;
+                    log?.Invoke($"zip-slip blocked: {entry.FullName}");
                     continue;
                 }
 
@@ -454,7 +455,7 @@ internal static class FileProcessor
         {
             if (File.Exists(item))
             {
-                AddFileToZip(zip, item, Path.GetFileName(item), result, log);
+                AddFileToZip(zip, item, Path.GetFileName(item), dest.Conflict, result, log);
                 lock (result) result.Compressed++;
             }
             else if (Directory.Exists(item))
@@ -463,7 +464,7 @@ internal static class FileProcessor
                 foreach (string file in Directory.GetFiles(item, "*", SearchOption.AllDirectories))
                 {
                     string relative = Path.GetRelativePath(item, file).Replace('\\', '/');
-                    AddFileToZip(zip, file, rootName + "/" + relative, result, log);
+                    AddFileToZip(zip, file, rootName + "/" + relative, dest.Conflict, result, log);
                 }
                 lock (result) result.Compressed++;
             }
@@ -474,19 +475,48 @@ internal static class FileProcessor
         }
     }
 
-    private static void AddFileToZip(ZipArchive zip, string file, string entryName, ProcessResult result, Action<string>? log)
+    private static void AddFileToZip(
+        ZipArchive zip, string file, string entryName, ConflictPolicy policy, ProcessResult result, Action<string>? log)
     {
-        if (zip.GetEntry(entryName) is not null)
+        if (zip.GetEntry(entryName) is { } existing)
         {
-            lock (result) result.Skipped++;
-            log?.Invoke($"zip entry exists, skipped: {entryName}");
-            return;
+            switch (policy)
+            {
+                case ConflictPolicy.Overwrite:
+                    existing.Delete();
+                    break;
+                case ConflictPolicy.Skip:
+                    lock (result) result.Skipped++;
+                    log?.Invoke($"zip entry exists, skipped: {entryName}");
+                    return;
+                default: // AutoRename
+                    entryName = NextZipEntryName(zip, entryName);
+                    break;
+            }
         }
 
         ZipArchiveEntry entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
         using var input = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var output = entry.Open();
         input.CopyTo(output, 1024 * 1024);
+    }
+
+    /// <summary>ZIP 条目的 AutoRename：条目路径用 '/' 分隔，生成 "name (2).ext" 样式。</summary>
+    private static string NextZipEntryName(ZipArchive zip, string entryName)
+    {
+        int slash = entryName.LastIndexOf('/');
+        string dir = slash >= 0 ? entryName[..(slash + 1)] : string.Empty;
+        string name = slash >= 0 ? entryName[(slash + 1)..] : entryName;
+        string baseName = Path.GetFileNameWithoutExtension(name);
+        string ext = Path.GetExtension(name);
+        for (int i = 2; ; i++)
+        {
+            string candidate = $"{dir}{baseName} ({i}){ext}";
+            if (zip.GetEntry(candidate) is null)
+            {
+                return candidate;
+            }
+        }
     }
 
     private static void DeleteItems(List<string> items, ProcessResult result, Action<string>? log)
@@ -564,48 +594,117 @@ internal static class FileProcessor
                 throw new SkipItemException($"already exists: {path}");
 
             default: // AutoRename
-                string dir = Path.GetDirectoryName(path)!;
-                string name = Path.GetFileNameWithoutExtension(path);
-                string ext = Path.GetExtension(path);
-                for (int i = 2; ; i++)
-                {
-                    string candidate = Path.Combine(dir, $"{name} ({i}){ext}");
-                    if (!File.Exists(candidate) && !Directory.Exists(candidate))
-                    {
-                        return candidate;
-                    }
-                }
+                return NextAvailable(path);
         }
     }
 
-    private static void MoveDirectory(string src, string dst)
+    /// <summary>AutoRename 的下一个候选名：name (2)、name (3)……</summary>
+    private static string NextAvailable(string path)
     {
-        try
+        string dir = Path.GetDirectoryName(path)!;
+        string name = Path.GetFileNameWithoutExtension(path);
+        string ext = Path.GetExtension(path);
+        for (int i = 2; ; i++)
         {
-            Directory.Move(src, dst);
-        }
-        catch (IOException)
-        {
-            // Cross-volume move: copy in parallel, then remove the source.
-            CopyDirectoryCore(src, dst, ConflictPolicy.Overwrite);
-            Directory.Delete(src, recursive: true);
+            string candidate = Path.Combine(dir, $"{name} ({i}){ext}");
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+            {
+                return candidate;
+            }
         }
     }
 
-    private static void CopyDirectoryCore(string srcDir, string dstDir, ConflictPolicy policy)
+    /// <summary>
+    /// 并行批次可能撞名：解析出的候选名在落盘前被其他线程抢走（Move/Copy 抛 IOException），
+    /// 此时换下一个候选名重试，而不是把该项记为失败。
+    /// </summary>
+    private static void MoveFileWithRetry(string src, string dst, ConflictPolicy policy)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Move(src, dst, overwrite: false);
+                return;
+            }
+            catch (IOException) when (policy == ConflictPolicy.AutoRename && attempt < 8 && File.Exists(dst))
+            {
+                dst = NextAvailable(dst);
+            }
+        }
+    }
+
+    private static void CopyFileWithRetry(string src, string dst, ConflictPolicy policy)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Copy(src, dst, overwrite: policy == ConflictPolicy.Overwrite);
+                return;
+            }
+            catch (IOException) when (policy == ConflictPolicy.AutoRename && attempt < 8 && File.Exists(dst))
+            {
+                dst = NextAvailable(dst);
+            }
+        }
+    }
+
+    private static void MoveDirectory(string src, string dst, ConflictPolicy policy)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Move(src, dst);
+                return;
+            }
+            catch (IOException) when (policy == ConflictPolicy.AutoRename && attempt < 8 && Directory.Exists(dst))
+            {
+                // 目标名被并行批次抢走时换候选名重试；不能落入下面的跨卷分支把源目录并进别人的目标。
+                dst = NextAvailable(dst);
+            }
+            catch (IOException)
+            {
+                // Cross-volume move: copy in parallel, then remove the source.
+                CopyDirectoryCore(src, dst, ConflictPolicy.Overwrite);
+                Directory.Delete(src, recursive: true);
+                return;
+            }
+        }
+    }
+
+    private static void CopyDirectoryCore(
+        string srcDir, string dstDir, ConflictPolicy policy,
+        ProcessResult? result = null, Action<string>? log = null)
     {
         Directory.CreateDirectory(dstDir);
 
         string[] files = Directory.GetFiles(srcDir, "*", SearchOption.TopDirectoryOnly);
         Parallel.For(0, files.Length, Options(), i =>
         {
-            string dst = ResolveConflict(Path.Combine(dstDir, Path.GetFileName(files[i])), policy);
-            File.Copy(files[i], dst, overwrite: true);
+            // 复制动作下按文件消化冲突与失败，单个文件不拖垮整个文件夹；
+            // 跨卷移动路径（result 为 null）保持抛出，避免删除尚未复制完整的源目录。
+            try
+            {
+                string dst = ResolveConflict(Path.Combine(dstDir, Path.GetFileName(files[i])), policy);
+                CopyFileWithRetry(files[i], dst, policy);
+            }
+            catch (SkipItemException) when (result is not null)
+            {
+                lock (result) result.Skipped++;
+                log?.Invoke($"skipped: {files[i]}");
+            }
+            catch (Exception ex) when (result is not null)
+            {
+                RecordFailure(result, files[i], ex);
+                log?.Invoke($"failed: {files[i]} ({ex.Message})");
+            }
         });
 
         foreach (string sub in Directory.GetDirectories(srcDir, "*", SearchOption.TopDirectoryOnly))
         {
-            CopyDirectoryCore(sub, Path.Combine(dstDir, Path.GetFileName(sub)), policy);
+            CopyDirectoryCore(sub, Path.Combine(dstDir, Path.GetFileName(sub)), policy, result, log);
         }
     }
 }

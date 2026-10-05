@@ -32,7 +32,7 @@ internal sealed class SettingsForm : Form
     private readonly Button _btnPresets = new() { Text = "常用分类 ▾" };
     private readonly CheckBox _chkAutostart = new() { Text = "开机自启", AutoSize = true };
     private readonly CheckBox _chkNotify = new() { Text = "处理完成后显示通知气泡", AutoSize = true };
-    private readonly NumericUpDown _numIconSize = new() { Minimum = 32, Maximum = 128, Width = 64 };
+    private readonly NumericUpDown _numIconSize = new() { Minimum = 32, Maximum = 160, Width = 64 };
     private readonly Button _btnOk = new() { Text = "保存并应用" };
     private readonly Button _btnCancel = new() { Text = "取消" };
 
@@ -240,7 +240,7 @@ internal sealed class SettingsForm : Form
 
         _chkAutostart.Checked = _edit.StartWithWindows;
         _chkNotify.Checked = _edit.ShowNotifications;
-        _numIconSize.Value = Math.Clamp(_edit.IconSize, 32, 128);
+        _numIconSize.Value = Math.Clamp(_edit.IconSize, 32, 160);
 
         RefreshProfileCombo();
         RefreshDestList();

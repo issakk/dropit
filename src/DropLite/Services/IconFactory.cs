@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 
 namespace DropLite.Services;
 
@@ -11,6 +12,9 @@ namespace DropLite.Services;
 /// </summary>
 internal static class IconFactory
 {
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
     public static Icon CreateIcon(Color baseColor, int size = 32)
     {
         using var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
@@ -19,7 +23,16 @@ internal static class IconFactory
             g.SmoothingMode = SmoothingMode.AntiAlias;
             DrawDropIcon(g, new RectangleF(1.5f, 1.5f, size - 4.5f, size - 4.5f), baseColor, hovered: false, busy: false);
         }
-        return Icon.FromHandle(bmp.GetHicon());
+        // Icon.FromHandle 不拥有句柄；克隆出可自行释放的副本后立即销毁原始 HICON，避免泄漏。
+        IntPtr hIcon = bmp.GetHicon();
+        try
+        {
+            return (Icon)Icon.FromHandle(hIcon).Clone();
+        }
+        finally
+        {
+            DestroyIcon(hIcon);
+        }
     }
 
     public static void DrawDropIcon(
